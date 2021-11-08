@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2/data/validation"
 	"fyne.io/fyne/v2/widget"
 	"github.com/nfnt/resize"
+	"github.com/sqweek/dialog"
 	"image"
 	"image/jpeg"
 	"io"
@@ -26,11 +27,6 @@ var files []string
 var status binding.String
 
 func main() {
-	if len(os.Args) == 1 {
-		files = []string{filepath.Dir(os.Args[0])}
-	} else {
-		files = os.Args[1:]
-	}
 
 	a := app.NewWithID("com.github.chirino.resize")
 	status = binding.NewString()
@@ -41,6 +37,26 @@ func main() {
 }
 
 func newAppContent(a fyne.App) fyne.CanvasObject {
+
+	if len(os.Args) == 1 {
+		files = []string{a.Preferences().StringWithFallback("Images", "")}
+	} else {
+		files = os.Args[1:]
+	}
+
+	filesEntry := widget.NewLabel(strings.Join(files, "\n"))
+	filesContainer := container.NewVBox(
+		container.NewMax(filesEntry),
+		widget.NewButton("...", func() {
+			dir, err := dialog.Directory().Title("Load images").Browse()
+			if err == nil {
+				a.Preferences().SetString("Images", dir)
+				files = []string{dir}
+				filesEntry.Text = strings.Join(files, "\n")
+				filesEntry.Refresh()
+			}
+		}),
+	)
 
 	maxWidthEntry := widget.NewEntry()
 	maxWidthEntry.Text = a.Preferences().StringWithFallback("MaxWidth", fmt.Sprint(maxWidth))
@@ -56,7 +72,7 @@ func newAppContent(a fyne.App) fyne.CanvasObject {
 
 	form := &widget.Form{
 		Items: []*widget.FormItem{
-			{Text: "Images:", Widget: widget.NewLabelWithStyle(strings.Join(files, ","), fyne.TextAlignCenter, fyne.TextStyle{})},
+			{Text: "Images:", Widget: filesContainer},
 			{Text: "Max Width:", Widget: maxWidthEntry, HintText: "max width in pixels"},
 			{Text: "Max Height:", Widget: maxHeightEntry, HintText: "max height in pixels"},
 			{Text: "Max Size:", Widget: maxSizeEntry, HintText: "max file size in kb"},
