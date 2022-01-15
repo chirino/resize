@@ -23,6 +23,7 @@ import (
 var maxWidth = 1200
 var maxHeight = 0
 var maxSize = 250
+var convertPngs = true
 var files []string
 var status binding.String
 
@@ -61,14 +62,41 @@ func newAppContent(a fyne.App) fyne.CanvasObject {
 	maxWidthEntry := widget.NewEntry()
 	maxWidthEntry.Text = a.Preferences().StringWithFallback("MaxWidth", fmt.Sprint(maxWidth))
 	maxWidthEntry.Validator = validation.NewRegexp(`\d+`, "not a valid width")
+	maxWidthEntry.OnChanged = func(s string) {
+		var err error
+		maxWidth, err = strconv.Atoi(s)
+		if err != nil {
+			a.Preferences().SetString("MaxWidth", s)
+		}
+	}
 
 	maxHeightEntry := widget.NewEntry()
 	maxHeightEntry.Text = a.Preferences().StringWithFallback("MaxHeight", fmt.Sprint(maxHeight))
 	maxHeightEntry.Validator = validation.NewRegexp(`\d+`, "not a valid height")
+	maxHeightEntry.OnChanged = func(s string) {
+		var err error
+		maxHeight, err = strconv.Atoi(s)
+		if err != nil {
+			a.Preferences().SetString("MaxHeight", s)
+		}
+	}
 
 	maxSizeEntry := widget.NewEntry()
 	maxSizeEntry.Text = a.Preferences().StringWithFallback("MaxSize", fmt.Sprint(maxSize))
 	maxSizeEntry.Validator = validation.NewRegexp(`\d+`, "not a valid size")
+	maxHeightEntry.OnChanged = func(s string) {
+		var err error
+		maxSize, err = strconv.Atoi(s)
+		if err != nil {
+			a.Preferences().SetString("MaxSize", s)
+		}
+	}
+
+	convertPngsEntry := widget.NewCheck("Convert .png images", func(b bool) {
+		convertPngs = b
+		a.Preferences().SetBool("ConvertPngs", b)
+	})
+	convertPngsEntry.SetChecked(a.Preferences().BoolWithFallback("ConvertPngs", convertPngs))
 
 	form := &widget.Form{
 		Items: []*widget.FormItem{
@@ -76,21 +104,13 @@ func newAppContent(a fyne.App) fyne.CanvasObject {
 			{Text: "Max Width:", Widget: maxWidthEntry, HintText: "max width in pixels"},
 			{Text: "Max Height:", Widget: maxHeightEntry, HintText: "max height in pixels"},
 			{Text: "Max Size:", Widget: maxSizeEntry, HintText: "max file size in kb"},
+			{Text: "", Widget: convertPngsEntry},
 		},
 		SubmitText: "Resize",
 	}
 
 	content := container.NewMax()
 	form.OnSubmit = func() {
-
-		maxWidth, _ = strconv.Atoi(maxWidthEntry.Text)
-		maxHeight, _ = strconv.Atoi(maxHeightEntry.Text)
-		maxSize, _ = strconv.Atoi(maxSizeEntry.Text)
-
-		a.Preferences().SetString("MaxWidth", maxWidthEntry.Text)
-		a.Preferences().SetString("MaxHeight", maxHeightEntry.Text)
-		a.Preferences().SetString("MaxSize", maxSizeEntry.Text)
-
 		p := widget.NewProgressBarInfinite()
 		p.Start()
 
@@ -160,7 +180,8 @@ func processFile(file string) (int, error) {
 		name := filepath.Base(file)
 		ext := filepath.Ext(name)
 		lowerExt := strings.ToLower(ext)
-		if lowerExt == ".jpg" || lowerExt == ".jpeg" || lowerExt == ".png" {
+		if lowerExt == ".jpg" || lowerExt == ".jpeg" || (convertPngs && lowerExt == ".png") {
+
 			fi, err := os.Open(file)
 			if err != nil {
 				return 0, err
@@ -223,8 +244,13 @@ func resizeFile(file string, img image.Image) (int, error) {
 	}
 
 	return 1, backupOrRestore(file, func() error {
-		// change the extension to .jpg
-		newName := strings.TrimSuffix(file, filepath.Ext(file)) + ".jpg"
+
+		newName := file
+
+		if strings.ToLower(filepath.Ext(file)) == ".png" {
+			// change the extension to .jpg
+			newName = strings.TrimSuffix(file, filepath.Ext(file)) + ".jpg"
+		}
 
 		out, err := os.Create(newName)
 		if err != nil {
